@@ -1,0 +1,42 @@
+name: concert
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: concert
+      POSTGRES_PASSWORD: concert
+      POSTGRES_DB: concert
+    ports:
+      - "5433:5432"          # 5433 ở host để không đụng Postgres có sẵn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concert -d concert"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      args:
+        INSTALL_DEV: "true"
+    environment:
+      DATABASE_URL: postgresql+psycopg://concert:concert@db:5432/concert
+      JWT_SECRET: dev-secret-change-me
+      WEBHOOK_SECRET: dev-webhook-secret
+      AUTO_CREATE_SCHEMA: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app          # sửa code là reload, không cần build lại
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+volumes:
+  pgdata:

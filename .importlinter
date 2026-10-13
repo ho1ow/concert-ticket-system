@@ -1,0 +1,43 @@
+# Cuong che kien truc: api -> services -> domain <- infra
+# Chay: lint-imports
+[importlinter]
+root_package = app
+include_external_packages = True
+
+[importlinter:contract:1]
+name = Tang domain thuan Python
+type = forbidden
+source_modules =
+    app.domain
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    jwt
+    pwdlib
+    pydantic
+    app.api
+    app.services
+    app.infra
+
+[importlinter:contract:2]
+name = Tang services khong biet framework web, DB, crypto
+type = forbidden
+source_modules =
+    app.services
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    jwt
+    pwdlib
+    psycopg
+    app.api
+    app.infra
+
+[importlinter:contract:3]
+name = Tang infra khong goi nguoc len api/services
+type = forbidden
+source_modules =
+    app.infra
+forbidden_modules =
+    app.api
+    app.services
