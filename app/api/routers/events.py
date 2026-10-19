@@ -6,6 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query, Response, status
 
+from app.api.deps import CurrentActor, EventServiceDep
 from app.api.errors import NotImplementedYet, error_responses
 from app.api.schemas import (
     EventDetailOut,
@@ -14,6 +15,7 @@ from app.api.schemas import (
     EventUpdateIn,
     Page,
     PublishOut,
+    ZoneOut,
 )
 from app.domain.entities import EventStatus
 
@@ -28,13 +30,35 @@ write_router = APIRouter(prefix="/events", tags=["events"])
     description="Endpoint đọc chịu tải cao. Public chỉ thấy event PUBLISHED.",
 )
 def list_events(
+    actor: CurrentActor,
+    service: EventServiceDep,
     status_filter: EventStatus | None = Query(None, alias="status"),
     date_from: datetime | None = Query(None, alias="from"),
     date_to: datetime | None = Query(None, alias="to"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ) -> Page[EventOut]:
-    raise NotImplementedYet("GET /events")
+    if actor.role.value == "ADMIN" and status_filter is not None:
+        items, total = service.list_for_admin(
+            status=status_filter.value,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            size=size,
+        )
+    else:
+        items, total = service.list_published(
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            size=size,
+        )
+    return Page[EventOut](
+        items=[EventOut.from_entity(e) for e in items],
+        total=total,
+        page=page,
+        size=size,
+    )
 
 
 @read_router.get(
@@ -43,8 +67,24 @@ def list_events(
     summary="Chi tiết concert kèm zone và giá",
     responses=error_responses(404),
 )
-def get_event(event_id: int) -> EventDetailOut:
-    raise NotImplementedYet("GET /events/{event_id}")
+def get_event(
+    event_id: int, actor: CurrentActor, service: EventServiceDep
+) -> EventDetailOut:
+    event, zones = service.get_with_zones(actor, event_id)
+    out = EventDetailOut.from_entity(event).model_copy(
+        update={
+            "zones": [
+                ZoneOut(
+                    id=z.zone.id,
+                    name=z.zone.name,
+                    price=z.zone.price,
+                    available_seats=z.available_seats,
+                )
+                for z in zones
+            ]
+        }
+    )
+    return out
 
 
 @write_router.post(

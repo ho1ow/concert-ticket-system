@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.infra.db.repositories import SqlRefreshTokenRepository, SqlUserRepository
+from app.infra.db.repositories import (
+    SqlEventRepository,
+    SqlEventSeatRepository,
+    SqlEventZoneRepository,
+    SqlHoldRepository,
+    SqlOrderRepository,
+    SqlPaymentRepository,
+    SqlRefreshTokenRepository,
+    SqlTicketRepository,
+    SqlUserRepository,
+)
 from app.infra.db.session import get_session_factory
 
 
@@ -22,6 +33,13 @@ class SqlAlchemyUnitOfWork:
         self._session = self._session_factory()
         self.users = SqlUserRepository(self._session)
         self.refresh_tokens = SqlRefreshTokenRepository(self._session)
+        self.events = SqlEventRepository(self._session)
+        self.event_seats = SqlEventSeatRepository(self._session)
+        self.event_zones = SqlEventZoneRepository(self._session)
+        self.holds = SqlHoldRepository(self._session)
+        self.orders = SqlOrderRepository(self._session)
+        self.payments = SqlPaymentRepository(self._session)
+        self.tickets = SqlTicketRepository(self._session)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -43,3 +61,9 @@ class SqlAlchemyUnitOfWork:
 
     def rollback(self) -> None:
         self.session.rollback()
+
+    def advisory_xact_lock(self, key1: int, key2: int) -> None:
+        self.session.execute(
+            text("SELECT pg_advisory_xact_lock(:a, :b)"),
+            {"a": int(key1), "b": int(key2)},
+        )
