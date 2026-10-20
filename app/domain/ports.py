@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from app.domain.auth import AccessToken, Actor
-from app.domain.entities import RefreshToken, User, Venue
+from app.domain.entities import RefreshToken, User, Venue, Seat
 
 
 @runtime_checkable
@@ -91,6 +91,8 @@ class VenueRepository(Protocol):
         ...
 
     def update(self, venue: Venue) -> None: ...
+
+    def list_seats(self, venue_id: int, page: int, size: int) -> tuple[list[Seat], int]: ...
 
 @runtime_checkable
 class UnitOfWork(Protocol):

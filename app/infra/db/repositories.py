@@ -12,9 +12,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.domain.entities import RefreshToken, User, Venue
+from app.domain.entities import RefreshToken, User, Venue, Seat
 from app.domain.errors import EmailExists
-from app.infra.db.models import RefreshTokenModel, UserModel, VenueModel
+from app.infra.db.models import RefreshTokenModel, UserModel, VenueModel, SeatModel
 
 
 def _to_user(row: UserModel) -> User:
@@ -48,6 +48,15 @@ def _to_venue(row: VenueModel) -> Venue:
         name=row.name,
         address=row.address,
         created_at=row.created_at,
+    )
+
+def _to_seat(row: SeatModel) -> Seat:
+    return Seat(
+        id=row.id,
+        venue_id=row.venue_id,
+        section=row.section,
+        row=row.row,
+        number=row.number,
     )
 
 class SqlUserRepository:
@@ -161,3 +170,24 @@ class SqlVenueRepository:
         ).all()
 
         return [_to_venue(row) for row in rows], total
+
+    def get(self, venue_id: int) -> Venue | None:
+        row = self._s.get(VenueModel, venue_id)
+        return _to_venue(row) if row else None
+
+    def list_seats(self, venue_id: int, page: int, size: int) -> tuple[list[Seat], int]:
+        offset = (page - 1) * size
+
+        total = self._s.scalar(
+            select(func.count()).select_from(SeatModel).where(SeatModel.venue_id == venue_id)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(SeatModel)
+            .where(SeatModel.venue_id == venue_id)
+            .order_by(SeatModel.section, SeatModel.row, SeatModel.number)
+            .offset(offset)
+            .limit(size)
+        ).all()
+
+        return [_to_seat(row) for row in rows], total

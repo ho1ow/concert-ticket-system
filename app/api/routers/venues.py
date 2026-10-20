@@ -38,8 +38,9 @@ def list_venues(
     summary="Chi tiết địa điểm",
     responses=error_responses(404),
 )
-def get_venue(venue_id: int) -> VenueOut:
-    raise NotImplementedYet("GET /venues/{venue_id}")
+def get_venue(venue_id: int, service: VenueServiceDep) -> VenueOut:
+    venue = service.get_venue(venue_id)
+    return VenueOut.from_entity(venue)
 
 
 @read_router.get(
@@ -49,11 +50,19 @@ def get_venue(venue_id: int) -> VenueOut:
     responses=error_responses(404),
 )
 def list_venue_seats(
+    service: VenueServiceDep,
     venue_id: int,
     page: int = Query(1, ge=1),
     size: int = Query(100, ge=1, le=100),
 ) -> Page[SeatOut]:
-    raise NotImplementedYet("GET /venues/{venue_id}/seats")
+    seats, total = service.list_seats(venue_id, page, size)
+
+    return Page[SeatOut](
+        items=[SeatOut.from_entity(s) for s in seats],
+        total=total,
+        page=page,
+        size=size, 
+    )
 
 
 @write_router.post(
