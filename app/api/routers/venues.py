@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, status
 
+from app.api.deps import VenueServiceDep
 from app.api.errors import NotImplementedYet, error_responses
 from app.api.schemas import Page, SeatBulkIn, SeatBulkOut, SeatOut, VenueIn, VenueOut
 
@@ -17,10 +18,18 @@ write_router = APIRouter(prefix="/venues", tags=["venues"])
     summary="Danh sách địa điểm (phân trang)",
 )
 def list_venues(
+    service: VenueServiceDep,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ) -> Page[VenueOut]:
-    raise NotImplementedYet("GET /venues")
+    venues, total = service.list_venues(page, size)
+
+    return Page[VenueOut](
+        items=[VenueOut.from_entity(v) for v in venues],
+        total=total,
+        page=page,
+        size=size,
+    )
 
 
 @read_router.get(

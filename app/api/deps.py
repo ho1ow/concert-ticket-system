@@ -18,6 +18,7 @@ from app.infra.config import Settings, get_settings
 from app.infra.db.uow import SqlAlchemyUnitOfWork
 from app.infra.security import Argon2Hasher, JwtTokenIssuer, SystemClock
 from app.services.auth_service import AuthService
+from app.services.venue_service import VenueService
 
 # auto_error=False để tự trả lỗi theo đúng bảng mã lỗi của hệ thống.
 bearer_scheme = HTTPBearer(auto_error=False, description="Access token (JWT HS256)")
@@ -61,6 +62,10 @@ def get_auth_service() -> AuthService:
         lock_minutes=settings.login_lock_minutes,
     )
 
+@lru_cache
+def get_venue_service() -> VenueService:
+    return VenueService(uow_factory=SqlAlchemyUnitOfWork)
+
 
 # ------------------------------------------------------- authentication
 def get_current_user(
@@ -95,4 +100,5 @@ def require_role(*roles: str):
 # ------------------------------------------------------------- shortcuts
 CurrentActor = Annotated[Actor, Depends(get_current_user)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+VenueServiceDep = Annotated[VenueService, Depends(get_venue_service)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]

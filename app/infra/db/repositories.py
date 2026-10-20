@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.domain.entities import RefreshToken, User
+from app.domain.entities import RefreshToken, User, Venue
 from app.domain.errors import EmailExists
-from app.infra.db.models import RefreshTokenModel, UserModel
+from app.infra.db.models import RefreshTokenModel, UserModel, VenueModel
 
 
 def _to_user(row: UserModel) -> User:
@@ -42,6 +42,13 @@ def _to_refresh_token(row: RefreshTokenModel) -> RefreshToken:
         created_at=row.created_at,
     )
 
+def _to_venue(row: VenueModel) -> Venue:
+    return Venue(
+        id=row.id,
+        name=row.name,
+        address=row.address,
+        created_at=row.created_at,
+    )
 
 class SqlUserRepository:
     def __init__(self, session: Session) -> None:
@@ -134,3 +141,23 @@ class SqlRefreshTokenRepository:
             .values(revoked_at=now)
         )
         return result.rowcount
+
+
+class SqlVenueRepository:
+    def __init__(self, session: Session) -> None:
+        self._s = session
+    def list(self, page: int, size: int) -> tuple[list[Venue], int]:
+        offset = (page - 1) * size
+
+        total = self._s.scalar(
+            select(func.count()).select_from(VenueModel)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(VenueModel)
+            .order_by(VenueModel.id)
+            .offset(offset)
+            .limit(size)
+        ).all()
+
+        return [_to_venue(row) for row in rows], total

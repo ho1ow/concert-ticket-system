@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from app.domain.auth import AccessToken, Actor
-from app.domain.entities import RefreshToken, User
+from app.domain.entities import RefreshToken, User, Venue
 
 
 @runtime_checkable
@@ -80,10 +80,22 @@ class RefreshTokenRepository(Protocol):
         """Thu hồi cả family khi phát hiện tái sử dụng. Trả số dòng."""
         ...
 
+@runtime_checkable
+class VenueRepository(Protocol):
+    def get(self, venue_id: int) -> Venue | None: ...
+
+    def list(self, page: int, size: int) -> tuple[list[Venue], int]: ...
+
+    def add(self, venue: Venue) -> Venue:
+        """Raise VenueExists nếu vi phạm UNIQUE(name)."""
+        ...
+
+    def update(self, venue: Venue) -> None: ...
 
 @runtime_checkable
 class UnitOfWork(Protocol):
     users: UserRepository
+    venues: VenueRepository
     refresh_tokens: RefreshTokenRepository
 
     def __enter__(self) -> UnitOfWork: ...
