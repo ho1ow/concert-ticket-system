@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.deps import CurrentActor, TicketServiceDep
+from app.api.errors import error_responses
 from app.api.schemas import CheckInOut, TicketOut
 
 me_router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -17,8 +18,25 @@ checkin_router = APIRouter(prefix="/tickets", tags=["tickets"])
     summary="Vé của tôi",
     responses=error_responses(401),
 )
-def list_my_tickets() -> list[TicketOut]:
-    raise NotImplementedYet("GET /tickets/me")
+def list_my_tickets(
+    actor: CurrentActor, service: TicketServiceDep
+) -> list[TicketOut]:
+    items = service.list_for_user(actor)
+    out: list[TicketOut] = []
+    for d in items:
+        out.append(
+            TicketOut(
+                id=d.ticket.id,
+                code=d.ticket.code,
+                event_id=d.event.id,
+                event_title=d.event.title,
+                section=d.seat.section,
+                row=d.seat.row,
+                number=d.seat.number,
+                checked_in_at=d.ticket.checked_in_at,
+            )
+        )
+    return out
 
 
 @checkin_router.post(
@@ -32,5 +50,11 @@ def list_my_tickets() -> list[TicketOut]:
     ),
     responses=error_responses(401, 403, 404, 409),
 )
-def check_in(code: str) -> CheckInOut:
-    raise NotImplementedYet("POST /tickets/{code}/check-in")
+def check_in(
+    code: str, actor: CurrentActor, service: TicketServiceDep
+) -> CheckInOut:
+    result = service.check_in(actor, code)
+    return CheckInOut(
+        code=result.ticket.code,
+        checked_in_at=result.ticket.checked_in_at,
+    )

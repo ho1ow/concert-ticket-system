@@ -109,6 +109,13 @@ def new_ticket_code() -> str:
     return secrets.token_urlsafe(16)
 
 
+class TicketCodeService:
+    """Sinh mã QR cho vé. Tách thành class để truyền qua Protocol."""
+
+    def new_code(self) -> str:
+        return new_ticket_code()
+
+
 def verify_webhook_signature(
     body: bytes, timestamp: str, signature: str, *, secret: str, max_skew: int = 300
 ) -> None:
