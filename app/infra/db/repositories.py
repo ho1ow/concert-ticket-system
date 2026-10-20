@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.domain.entities import (
+    Venue,
     Event,
     EventSeat,
     EventStatus,
@@ -26,12 +27,14 @@ from app.domain.entities import (
     Payment,
     PaymentStatus,
     RefreshToken,
+    Seat,
     SeatStatus,
     Ticket,
     User,
 )
-from app.domain.errors import EmailExists
+from app.domain.errors import EmailExists, SeatConflict
 from app.infra.db.models import (
+    VenueModel,
     EventModel,
     EventSeatModel,
     EventZoneModel,
@@ -42,6 +45,7 @@ from app.infra.db.models import (
     RefreshTokenModel,
     SeatModel,
     TicketModel,
+    UserModel,
 )
 
 
@@ -70,6 +74,22 @@ def _to_refresh_token(row: RefreshTokenModel) -> RefreshToken:
         created_at=row.created_at,
     )
 
+def _to_venue(row: VenueModel) -> Venue:
+    return Venue(
+        id=row.id,
+        name=row.name,
+        address=row.address,
+        created_at=row.created_at,
+    )
+
+def _to_seat(row: SeatModel) -> Seat:
+    return Seat(
+        id=row.id,
+        venue_id=row.venue_id,
+        section=row.section,
+        row=row.row,
+        number=row.number,
+    )
 
 def _to_event(row: EventModel) -> Event:
     return Event(
@@ -177,6 +197,8 @@ class SqlUserRepository:
             locked_until=user.locked_until,
         )
         try:
+            # Savepoint: dịch IntegrityError thành lỗi nghiệp vụ mà không
+            # phá transaction đang mở.
             with self._s.begin_nested():
                 self._s.add(row)
                 self._s.flush()
@@ -223,6 +245,7 @@ class SqlRefreshTokenRepository:
     def revoke(
         self, token_id: int, *, now: datetime, replaced_by: int | None = None
     ) -> bool:
+        """UPDATE có điều kiện. Cùng kỹ thuật dùng cho việc giữ ghế."""
         result = self._s.execute(
             update(RefreshTokenModel)
             .where(
@@ -801,3 +824,99 @@ class SqlTicketRepository:
 
     def items_for_orders(self, order_ids: list[int]) -> dict[int, dict]:
         ...
+
+
+class SqlVenueRepository:
+    def __init__(self, session: Session) -> None:
+        self._s = session
+    def list(self, page: int, size: int) -> tuple[list[Venue], int]:
+        offset = (page - 1) * size
+
+        total = self._s.scalar(
+            select(func.count()).select_from(VenueModel)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(VenueModel)
+            .order_by(VenueModel.id)
+            .offset(offset)
+            .limit(size)
+        ).all()
+
+        return [_to_venue(row) for row in rows], total
+
+    def get(self, venue_id: int) -> Venue | None:
+        row = self._s.get(VenueModel, venue_id)
+        return _to_venue(row) if row else None
+
+    def list_seats(self, venue_id: int, page: int, size: int) -> tuple[list[Seat], int]:
+        offset = (page - 1) * size
+
+        total = self._s.scalar(
+            select(func.count()).select_from(SeatModel).where(SeatModel.venue_id == venue_id)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(SeatModel)
+            .where(SeatModel.venue_id == venue_id)
+            .order_by(SeatModel.section, SeatModel.row, SeatModel.number)
+            .offset(offset)
+            .limit(size)
+        ).all()
+
+        return [_to_seat(row) for row in rows], total
+
+    def add(self, venue: Venue) -> Venue:
+        row = VenueModel(
+            name=venue.name,
+            address=venue.address,
+        )
+
+        self._s.add(row)
+        self._s.flush()
+        return _to_venue(row)
+
+class SqlSeatRepository:
+    def __init__(self, session: Session) -> None:
+        self._s = session
+
+    def list_by_venue(
+        self, venue_id: int, page: int, size: int
+    ) -> tuple[list[Seat], int]:
+        offset = (page - 1) * size
+
+        total = self._s.scalar(
+            select(func.count())
+            .select_from(SeatModel)
+            .where(SeatModel.venue_id == venue_id)
+        ) or 0
+
+        rows = self._s.scalars(
+            select(SeatModel)
+            .where(SeatModel.venue_id == venue_id)
+            .order_by(SeatModel.section, SeatModel.row, SeatModel.number)
+            .offset(offset)
+            .limit(size)
+        ).all()
+
+        return [_to_seat(row) for row in rows], total
+
+    def add_many(self, seats: list[Seat]) -> int:
+        rows = [
+            SeatModel(
+                venue_id=seat.venue_id,
+                section=seat.section,
+                row=seat.row,
+                number=seat.number,
+            )
+            for seat in seats
+        ]
+
+        try:
+            with self._s.begin_nested():
+                self._s.add_all(rows)
+                self._s.flush()
+        except IntegrityError as exc:
+            raise SeatConflict("One or more seats already exist") from exc
+
+        return len(rows)

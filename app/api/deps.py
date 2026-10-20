@@ -24,6 +24,7 @@ from app.infra.security import (
     TicketCodeService,
 )
 from app.services.auth_service import AuthService
+from app.services.venue_service import VenueService
 from app.services.event_service import EventService
 from app.services.hold_service import HoldService
 from app.services.order_service import OrderService
@@ -80,6 +81,10 @@ def get_auth_service() -> AuthService:
         lock_threshold=settings.login_lock_threshold,
         lock_minutes=settings.login_lock_minutes,
     )
+
+@lru_cache
+def get_venue_service() -> VenueService:
+    return VenueService(uow_factory=SqlAlchemyUnitOfWork)
 
 
 @lru_cache
@@ -151,6 +156,7 @@ def require_role(*roles: str):
 # ------------------------------------------------------------- shortcuts
 CurrentActor = Annotated[Actor, Depends(get_current_user)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+VenueServiceDep = Annotated[VenueService, Depends(get_venue_service)]
 HoldServiceDep = Annotated[HoldService, Depends(get_hold_service)]
 OrderServiceDep = Annotated[OrderService, Depends(get_order_service)]
 PaymentServiceDep = Annotated[PaymentService, Depends(get_payment_service)]

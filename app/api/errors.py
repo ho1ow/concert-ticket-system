@@ -29,6 +29,7 @@ STATUS_BY_CODE: dict[str, int] = {
     "SALE_NOT_OPEN": 409,
     "INVALID_STATE": 409,
     "ALREADY_CHECKED_IN": 409,
+    "SEAT_CONFLICT": 409,
     # 410
     "HOLD_EXPIRED": 410,
     "ORDER_EXPIRED": 410,

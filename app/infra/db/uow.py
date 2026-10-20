@@ -14,7 +14,7 @@ from app.infra.db.repositories import (
     SqlPaymentRepository,
     SqlRefreshTokenRepository,
     SqlTicketRepository,
-    SqlUserRepository,
+    SqlUserRepository, SqlVenueRepository, SqlSeatRepository,
 )
 from app.infra.db.session import get_session_factory
 
@@ -33,6 +33,8 @@ class SqlAlchemyUnitOfWork:
         self._session = self._session_factory()
         self.users = SqlUserRepository(self._session)
         self.refresh_tokens = SqlRefreshTokenRepository(self._session)
+        self.venues = SqlVenueRepository(self._session)
+        self.seats = SqlSeatRepository(self._session)
         self.events = SqlEventRepository(self._session)
         self.event_seats = SqlEventSeatRepository(self._session)
         self.event_zones = SqlEventZoneRepository(self._session)
