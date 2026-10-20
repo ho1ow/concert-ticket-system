@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Header, Request
 
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.deps import CurrentActor, PaymentServiceDep, SettingsDep
+from app.api.errors import error_responses
 from app.api.schemas import PayOut, WebhookAck
 from app.domain.errors import MissingIdempotencyKey, Unauthorized
+from app.infra.config import Settings
+from app.infra.security import verify_webhook_signature
 
 router = APIRouter(prefix="/orders", tags=["payments"])
 webhook_router = APIRouter(prefix="/payments", tags=["payments"])
@@ -28,15 +33,24 @@ webhook_router = APIRouter(prefix="/payments", tags=["payments"])
 )
 def pay_order(
     order_id: int,
+    actor: CurrentActor,
+    service: PaymentServiceDep,
     idempotency_key: str | None = Header(
         None, alias="Idempotency-Key", description="Khoá idempotent do client sinh"
     ),
 ) -> PayOut:
-    # Header khai báo optional để thiếu nó trả đúng 400 MISSING_IDEMPOTENCY_KEY
-    # theo bảng mã lỗi, thay vì 422 VALIDATION_ERROR của Pydantic.
     if not idempotency_key:
         raise MissingIdempotencyKey("Header Idempotency-Key is required")
-    raise NotImplementedYet("POST /orders/{order_id}/pay")
+    result = service.pay(
+        actor, order_id=order_id, idempotency_key=idempotency_key
+    )
+    return PayOut(
+        order_id=result.order_id,
+        status=result.status,
+        payment_id=result.payment_id,
+        amount=result.amount,
+        ticket_codes=result.ticket_codes,
+    )
 
 
 @webhook_router.post(
@@ -53,12 +67,22 @@ def pay_order(
 )
 async def payment_webhook(
     request: Request,
+    settings: SettingsDep,
     x_signature: str | None = Header(None, alias="X-Signature"),
     x_timestamp: str | None = Header(None, alias="X-Timestamp"),
 ) -> WebhookAck:
-    # Hai header khai báo optional để thiếu chúng trả 401 như trường hợp chữ
-    # ký sai, thay vì 422 của Pydantic. Webhook không có chữ ký là request
-    # chưa xác thực, không phải request sai định dạng.
     if not x_signature or not x_timestamp:
         raise Unauthorized("Missing webhook signature")
-    raise NotImplementedYet("POST /payments/webhook")
+    body = await request.body()
+    verify_webhook_signature(
+        body=body,
+        timestamp=x_timestamp,
+        signature=x_signature,
+        secret=settings.webhook_secret,
+        max_skew=settings.webhook_max_skew_seconds,
+    )
+    try:
+        json.loads(body or b"{}")
+    except json.JSONDecodeError:
+        raise Unauthorized("Malformed webhook payload")
+    return WebhookAck(received=True)

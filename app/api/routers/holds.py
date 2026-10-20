@@ -2,12 +2,40 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Response, status
 
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.deps import CurrentActor, HoldServiceDep
+from app.api.errors import error_responses
 from app.api.schemas import HoldDetailOut, HoldIn, HoldOut
+from app.domain.entities import Hold
+from app.infra.security import SystemClock
 
 router = APIRouter(prefix="/holds", tags=["holds"])
+
+_clock = SystemClock()
+
+
+def _to_hold_out(hold: Hold) -> HoldOut:
+    return HoldOut(
+        hold_id=hold.id,
+        event_id=hold.event_id,
+        seat_ids=list(hold.seat_ids),
+        expires_at=hold.expires_at,
+    )
+
+
+def _to_hold_detail(hold: Hold, now: datetime) -> HoldDetailOut:
+    seconds_left = max(0, int((hold.expires_at - now).total_seconds()))
+    return HoldDetailOut(
+        hold_id=hold.id,
+        event_id=hold.event_id,
+        seat_ids=list(hold.seat_ids),
+        expires_at=hold.expires_at,
+        status=hold.status,
+        seconds_left=seconds_left,
+    )
 
 
 @router.post(
@@ -25,8 +53,11 @@ router = APIRouter(prefix="/holds", tags=["holds"])
     ),
     responses=error_responses(401, 404, 409, 422),
 )
-def create_hold(payload: HoldIn) -> HoldOut:
-    raise NotImplementedYet("POST /holds")
+def create_hold(payload: HoldIn, actor: CurrentActor, service: HoldServiceDep) -> HoldOut:
+    hold = service.create(
+        actor, event_id=payload.event_id, seat_ids=payload.seat_ids
+    )
+    return _to_hold_out(hold)
 
 
 @router.get(
@@ -36,8 +67,9 @@ def create_hold(payload: HoldIn) -> HoldOut:
     description="Chỉ chủ hold xem được, người khác nhận 404 chứ không phải 403.",
     responses=error_responses(401, 404),
 )
-def get_hold(hold_id: int) -> HoldDetailOut:
-    raise NotImplementedYet("GET /holds/{hold_id}")
+def get_hold(hold_id: int, actor: CurrentActor, service: HoldServiceDep) -> HoldDetailOut:
+    hold = service.get(actor, hold_id)
+    return _to_hold_detail(hold, _clock.now())
 
 
 @router.delete(
@@ -47,5 +79,8 @@ def get_hold(hold_id: int) -> HoldDetailOut:
     description="Hold chuyển RELEASED, ghế HELD về AVAILABLE theo đúng `hold_id`.",
     responses=error_responses(401, 404, 409),
 )
-def release_hold(hold_id: int) -> Response:
-    raise NotImplementedYet("DELETE /holds/{hold_id}")
+def release_hold(
+    hold_id: int, actor: CurrentActor, service: HoldServiceDep
+) -> Response:
+    service.release(actor, hold_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
