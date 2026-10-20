@@ -72,8 +72,9 @@ def list_venue_seats(
     summary="[Admin] Tạo địa điểm",
     responses=error_responses(401, 403, 422),
 )
-def create_venue(payload: VenueIn) -> VenueOut:
-    raise NotImplementedYet("POST /venues")
+def create_venue(payload: VenueIn, service: VenueServiceDep) -> VenueOut:
+    venue = service.create_venue(payload.name, payload.address)
+    return VenueOut.from_entity(venue)
 
 
 @write_router.post(
@@ -87,5 +88,8 @@ def create_venue(payload: VenueIn) -> VenueOut:
     ),
     responses=error_responses(401, 403, 404, 409, 422),
 )
-def create_seats(venue_id: int, payload: SeatBulkIn) -> SeatBulkOut:
-    raise NotImplementedYet("POST /venues/{venue_id}/seats")
+def create_seats(venue_id: int, payload: SeatBulkIn, service: VenueServiceDep) -> SeatBulkOut:
+    ranges = [(r.section, r.row, r.from_, r.to) for r in payload.ranges]
+
+    created = service.create_seats(venue_id, ranges)
+    return SeatBulkOut(created=created)

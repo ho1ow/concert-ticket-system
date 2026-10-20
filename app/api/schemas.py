@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.domain.auth import Role
 from app.domain.entities import (
@@ -20,6 +20,7 @@ from app.domain.entities import (
     EventStatus,
     HoldStatus,
     OrderStatus,
+    Seat,
     SeatStatus,
     User,
     Venue,
@@ -117,6 +118,12 @@ class SeatRangeIn(StrictModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
+    @model_validator(mode="after")
+    def validate_range(self) -> SeatRangeIn:
+        if self.to < self.from_:
+            raise ValueError("'to' phải lớn hơn hoặc bằng 'from'")
+        return self
+
 
 class SeatBulkIn(StrictModel):
     ranges: list[SeatRangeIn] = Field(min_length=1)
@@ -127,6 +134,10 @@ class SeatOut(BaseModel):
     section: str
     row: str
     number: int
+
+    @classmethod
+    def from_entity(cls, seat: Seat) -> SeatOut:
+        return cls(id=seat.id, section=seat.section, row=seat.row, number=seat.number)
 
 
 class SeatBulkOut(BaseModel):

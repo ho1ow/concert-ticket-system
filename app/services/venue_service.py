@@ -31,3 +31,38 @@ class VenueService:
         with self._uow() as uow:
             seats, total = uow.venues.list_seats(venue_id, page, size)
             return seats, total
+
+    def create_venue(self, name: str, address: str | None) -> Venue:
+        """Tạo venue mới"""
+        venue = Venue(id=None, name=name, address=address)
+        with self._uow() as uow:
+            venue = uow.venues.add(venue)
+            uow.commit()
+            return venue
+
+    def create_seats(
+        self,
+        venue_id: int,
+        ranges: list[tuple[str, str, int, int]],
+    ) -> int:
+        """Tạo ghế hàng loạt cho venue."""
+        with self._uow() as uow:
+            if uow.venues.get(venue_id) is None:
+                raise NotFound(f"Venue {venue_id} does not exist")
+
+            seats = [
+                Seat(
+                    id=None,
+                    venue_id=venue_id,
+                    section=section,
+                    row=row,
+                    number=number,
+                )
+                for section, row, first, last in ranges
+                for number in range(first, last + 1)
+            ]
+
+            created = uow.seats.add_many(seats)
+            uow.commit()
+            return created
+            

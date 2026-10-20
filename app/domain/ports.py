@@ -95,10 +95,15 @@ class VenueRepository(Protocol):
     def list_seats(self, venue_id: int, page: int, size: int) -> tuple[list[Seat], int]: ...
 
 @runtime_checkable
+class SeatRepository(Protocol):
+    def add_many(self, seats: list[Seat]) -> int: ...
+
+@runtime_checkable
 class UnitOfWork(Protocol):
     users: UserRepository
     venues: VenueRepository
     refresh_tokens: RefreshTokenRepository
+    seats: SeatRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

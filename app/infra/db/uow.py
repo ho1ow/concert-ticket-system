@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.infra.db.repositories import SqlRefreshTokenRepository, SqlUserRepository, SqlVenueRepository
+from app.infra.db.repositories import SqlRefreshTokenRepository, SqlUserRepository, SqlVenueRepository, SqlSeatRepository
 from app.infra.db.session import get_session_factory
 
 
@@ -23,6 +23,7 @@ class SqlAlchemyUnitOfWork:
         self.users = SqlUserRepository(self._session)
         self.refresh_tokens = SqlRefreshTokenRepository(self._session)
         self.venues = SqlVenueRepository(self._session)
+        self.seats = SqlSeatRepository(self._session)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
