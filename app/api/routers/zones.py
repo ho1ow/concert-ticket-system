@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentActor, EventServiceDep
+from app.api.deps import CurrentActor, EventServiceDep, ZoneServiceDep
 from app.api.errors import NotImplementedYet, error_responses
 from app.api.schemas import EventSeatOut, ZoneIn, ZoneOut
 from app.infra.security import SystemClock
@@ -89,5 +89,20 @@ def list_event_seats(
     ),
     responses=error_responses(401, 403, 404, 409, 422),
 )
-def create_zone(event_id: int, payload: ZoneIn) -> ZoneOut:
-    raise NotImplementedYet("POST /events/{event_id}/zones")
+def create_zone(
+    event_id: int,
+    payload: ZoneIn,
+    service: ZoneServiceDep,
+) -> ZoneOut:
+    zone = service.create_zone(
+        event_id=event_id,
+        name=payload.name,
+        price=payload.price,
+        seat_ids=payload.seat_ids,
+    )
+    return ZoneOut(
+        id=zone.id,
+        name=zone.name,
+        price=zone.price,
+        available_seats=len(payload.seat_ids),
+    )

@@ -30,6 +30,7 @@ from app.services.hold_service import HoldService
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
 from app.services.ticket_service import TicketService
+from app.services.zone_service import ZoneService
 
 bearer_scheme = HTTPBearer(auto_error=False, description="Access token (JWT HS256)")
 
@@ -122,6 +123,10 @@ def get_ticket_service() -> TicketService:
 def get_event_service() -> EventService:
     return EventService(uow_factory=SqlAlchemyUnitOfWork, clock=get_clock())
 
+@lru_cache
+def get_zone_service() -> ZoneService:
+    return ZoneService(uow_factory=SqlAlchemyUnitOfWork)
+
 
 # ------------------------------------------------------- authentication
 def get_current_user(
@@ -163,3 +168,4 @@ PaymentServiceDep = Annotated[PaymentService, Depends(get_payment_service)]
 TicketServiceDep = Annotated[TicketService, Depends(get_ticket_service)]
 EventServiceDep = Annotated[EventService, Depends(get_event_service)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+ZoneServiceDep = Annotated[ZoneService, Depends(get_zone_service)]
