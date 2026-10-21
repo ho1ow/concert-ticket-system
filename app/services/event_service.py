@@ -174,6 +174,74 @@ class EventService:
             uow.commit()
             return event
 
+    def update_event(
+        self,
+        event_id: int,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        start_time: datetime | None = None,
+        sale_open_at: datetime | None = None,
+        venue_id: int | None = None,
+    ) -> Event:
+        with self._uow() as uow:
+            event = uow.events.get_for_update(event_id)
+            if event is None:
+                raise NotFound("Không tìm thấy event")
+
+            if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):
+                raise InvalidState("Không thể sửa event đã bị huỷ")
+
+            if event.status is EventStatus.PUBLISHED and any(
+                value is not None
+                for value in (start_time, sale_open_at, venue_id)
+            ):
+                raise InvalidState(
+                    "Event đã PUBLISHED chỉ được sửa title và description"
+                )
+
+            next_start_time = (
+                start_time if start_time is not None else event.start_time
+            )
+            next_sale_open_at = (
+                sale_open_at if sale_open_at is not None else event.sale_open_at
+            )
+
+            schedule_changed = (
+                next_start_time != event.start_time
+                or next_sale_open_at != event.sale_open_at
+            )
+            if schedule_changed:
+                now = self._clock.now()
+                if next_sale_open_at <= now or next_start_time <= next_sale_open_at:
+                    raise InvalidState(
+                        "Thời gian phải thoả mãn start_time > sale_open_at > now"
+                    )
+
+            if venue_id is not None and venue_id != event.venue_id:
+                if uow.venues.get(venue_id) is None:
+                    raise NotFound("Không tìm thấy venue")
+
+                #if uow.event_zones.list_by_event(event_id):
+                #    raise InvalidState(
+                #        "Không thể đổi venue sau khi event đã có zone"
+                #   )
+
+            if title is not None:
+                event.title = title
+            if description is not None:
+                event.description = description
+            if start_time is not None:
+                event.start_time = start_time
+            if sale_open_at is not None:
+                event.sale_open_at = sale_open_at
+            if venue_id is not None:
+                event.venue_id = venue_id
+
+            uow.events.update(event)
+            uow.commit()
+            return event
+
     def publish_event(self, event_id: int) -> tuple[Event, int]:
         with self._uow() as uow:
             event = uow.events.get_for_update(event_id)
@@ -241,3 +309,19 @@ class EventService:
 
             uow.commit()
             return event, len(event_seats)
+
+    def delete_event(self, event_id: int) -> None:
+        with self._uow() as uow:
+            # Khóa event để tránh publish và delete cùng lúc
+            event = uow.events.get_for_update(event_id)
+            if event is None:
+                raise NotFound("Không tìm thấy event")
+
+            if event.status is not EventStatus.DRAFT:
+                raise InvalidState("Chỉ có thể xoá event đang ở trạng thái DRAFT")
+
+            # Repository cập nhật DRAFT -> CANCELLED, không xóa vật lý
+            if not uow.events.delete(event_id):
+                raise InvalidState("Event đã bị xóa")
+
+            uow.commit()
