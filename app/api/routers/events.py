@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentActor, EventServiceDep
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.errors import error_responses
 from app.api.schemas import (
     EventDetailOut,
     EventIn,
@@ -111,11 +111,24 @@ def create_event(payload: EventIn, service: EventServiceDep) -> EventOut:
     "/{event_id}",
     response_model=EventOut,
     summary="[Admin] Sửa concert",
-    description="Sửa tự do khi DRAFT. Khi đã PUBLISHED chỉ còn title và description.",
+    description=(
+        "Sửa tự do khi DRAFT. Khi đã PUBLISHED chỉ còn title và description. "
+        "Các trường nhận giá trị null sẽ không được cập nhật."
+    ),
     responses=error_responses(401, 403, 404, 409, 422),
 )
-def update_event(event_id: int, payload: EventUpdateIn) -> EventOut:
-    raise NotImplementedYet("PUT /events/{event_id}")
+def update_event(
+    event_id: int, payload: EventUpdateIn, service: EventServiceDep
+) -> EventOut:
+    event = service.update_event(
+        event_id,
+        title=payload.title,
+        description=payload.description,
+        start_time=payload.start_time,
+        sale_open_at=payload.sale_open_at,
+        venue_id=payload.venue_id,
+    )
+    return EventOut.from_entity(event)
 
 
 @write_router.delete(
@@ -124,8 +137,9 @@ def update_event(event_id: int, payload: EventUpdateIn) -> EventOut:
     summary="[Admin] Xoá concert (chỉ khi DRAFT)",
     responses=error_responses(401, 403, 404, 409),
 )
-def delete_event(event_id: int) -> Response:
-    raise NotImplementedYet("DELETE /events/{event_id}")
+def delete_event(event_id: int, service: EventServiceDep) -> Response:
+    service.delete_event(event_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @write_router.post(
