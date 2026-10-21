@@ -1,14 +1,15 @@
 """Use case đọc event cho khán giả và lấy sơ đồ ghế."""
 
 from __future__ import annotations
+from typing import Any
 
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
 from app.domain.auth import Actor, Role
-from app.domain.entities import Event, EventSeat, EventStatus, EventZone
-from app.domain.errors import NotFound
+from app.domain.entities import Event, EventSeat, EventStatus, EventZone, SeatStatus
+from app.domain.errors import NotFound, InvalidState
 from app.domain.ports import UnitOfWork
 
 
@@ -143,3 +144,100 @@ class EventService:
                 EventZoneWithCount(zone=zone, available_seats=available)
             )
         return result
+
+    def create_event(
+            self, 
+            venue_id: int, 
+            title: str, 
+            description: str | None, 
+            start_time: datetime, 
+            sale_open_at: datetime) -> Event:
+        with self._uow() as uow:
+            venue = uow.venues.get(venue_id)
+            if venue is None:
+                raise NotFound("Không tìm thấy venue")
+
+            now = self._clock.now()
+            if sale_open_at <= now or start_time <= sale_open_at:
+                raise ValueError("start_time phải > sale_open_at > now")
+            
+            event = Event(
+                id=None,
+                venue_id=venue_id,
+                title=title,
+                description=description,
+                start_time=start_time,
+                sale_open_at=sale_open_at,
+                status=EventStatus.DRAFT,
+            )
+            event = uow.events.add(event)
+            uow.commit()
+            return event
+
+    def publish_event(self, event_id: int) -> tuple[Event, int]:
+        with self._uow() as uow:
+            event = uow.events.get_for_update(event_id)
+            if event is None:
+                raise NotFound("Không tìm thấy event")
+
+            if event.status is not EventStatus.DRAFT:
+                raise InvalidState("Chỉ có thể publish event đang ở trạng thái DRAFT")
+
+            zones = uow.event_zones.list_by_event(event_id)
+            if not zones:
+                raise InvalidState("Event phải có ít nhất một zone")
+
+            # Kiểm tra mọi ghế của venue đã được gán zone
+            page_size = 500
+            seats, total = uow.venues.list_seats(
+                event.venue_id,
+                page=1,
+                size=page_size,
+            )
+
+            total_pages = (total + page_size - 1) // page_size
+            for page in range(2, total_pages + 1):
+                page_seats, _ = uow.venues.list_seats(
+                    event.venue_id,
+                    page=page,
+                    size=page_size,
+                )
+                seats.extend(page_seats)
+
+            venue_seat_ids = {seat.id for seat in seats}
+            if not venue_seat_ids:
+                raise InvalidState("Venue phải có ít nhất một ghế")
+
+            seat_zone_map = uow.event_zones.seat_zone_map(event_id)
+            zone_ids = {zone.id for zone in zones}
+
+            if (
+                None in venue_seat_ids
+                or set(seat_zone_map) != venue_seat_ids
+                or not set(seat_zone_map.values()).issubset(zone_ids)
+            ):
+                raise InvalidState(
+                    "Mọi ghế của venue phải được gán vào zone của event"
+                )
+
+            if uow.event_seats.count_zones_seats(event_id) > 0:
+                raise InvalidState("Event đã có event_seats")
+
+            event_seats = [
+                EventSeat(
+                    id=None,
+                    event_id=event_id,
+                    seat_id=seat_id,
+                    zone_id=zone_id,
+                    status=SeatStatus.AVAILABLE,
+                )
+                for seat_id, zone_id in sorted(seat_zone_map.items())
+            ]
+
+            uow.event_seats.add_many(event_seats)
+
+            event.status = EventStatus.PUBLISHED
+            uow.events.update(event)
+
+            uow.commit()
+            return event, len(event_seats)

@@ -95,8 +95,16 @@ def get_event(
     description="Bắt buộc `start_time > sale_open_at > now`.",
     responses=error_responses(401, 403, 422),
 )
-def create_event(payload: EventIn) -> EventOut:
-    raise NotImplementedYet("POST /events")
+def create_event(payload: EventIn, service: EventServiceDep) -> EventOut:
+    event = service.create_event(
+        venue_id=payload.venue_id,
+        title=payload.title,
+        description=payload.description,
+        start_time=payload.start_time,
+        sale_open_at=payload.sale_open_at,
+    )
+
+    return EventOut.from_entity(event)
 
 
 @write_router.put(
@@ -131,5 +139,12 @@ def delete_event(event_id: int) -> Response:
     ),
     responses=error_responses(401, 403, 404, 409),
 )
-def publish_event(event_id: int) -> PublishOut:
-    raise NotImplementedYet("POST /events/{event_id}/publish")
+def publish_event(event_id: int, service: EventServiceDep) -> PublishOut:
+    event, created = service.publish_event(event_id)
+
+    assert event.id is not None
+    return PublishOut(
+        id=event.id,
+        status=event.status,
+        event_seats_created=created,
+    )

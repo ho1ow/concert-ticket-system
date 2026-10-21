@@ -18,6 +18,7 @@ from app.domain.entities import (
     Venue,
     Event,
     EventSeat,
+    EventZone,
     EventStatus,
     Hold,
     HoldStatus,
@@ -32,12 +33,13 @@ from app.domain.entities import (
     Ticket,
     User,
 )
-from app.domain.errors import EmailExists, SeatConflict
+from app.domain.errors import EmailExists, InvalidState
 from app.infra.db.models import (
     VenueModel,
     EventModel,
     EventSeatModel,
     EventZoneModel,
+    EventZoneSeatModel,
     HoldModel,
     OrderItemModel,
     OrderModel,
@@ -274,6 +276,14 @@ class SqlEventRepository:
 
     def get(self, event_id: int) -> Event | None:
         row = self._s.get(EventModel, event_id)
+        return _to_event(row) if row else None
+
+    def get_for_update(self, event_id: int) -> Event | None:
+        row = self._s.scalar(
+            select(EventModel)
+            .where(EventModel.id == event_id)
+            .with_for_update()
+        )
         return _to_event(row) if row else None
 
     def add(self, event: Event) -> Event:
@@ -528,6 +538,76 @@ class SqlEventZoneRepository:
             .order_by(EventZoneModel.id.asc())
         ).all()
         return list(rows)
+
+    def add(self, zone: EventZone) -> EventZone:
+        row = EventZoneModel(
+            event_id=zone.event_id,
+            name=zone.name,
+            price=zone.price,
+        )
+
+        self._s.add(row)
+        self._s.flush()
+
+        return EventZone(
+            id=row.id,
+            event_id=row.event_id,
+            name=row.name,
+            price=row.price,
+        )
+
+    def assigned_seat_ids(
+        self, event_id: int, seat_ids: list[int]
+    ) -> list[int]:
+        if not seat_ids:
+            return []
+
+        rows = self._s.scalars(
+            select(EventZoneSeatModel.seat_id).where(
+                EventZoneSeatModel.event_id == event_id,
+                EventZoneSeatModel.seat_id.in_(seat_ids),
+            )
+        ).all()
+        return [int(seat_id) for seat_id in rows]
+
+    def assign_seats(
+        self, *, event_id: int, zone_id: int, seat_ids: list[int]
+    ) -> None:
+        rows = [
+            EventZoneSeatModel(
+                event_id=event_id,
+                zone_id=zone_id,
+                seat_id=seat_id,
+            )
+            for seat_id in seat_ids
+        ]
+
+        try:
+            with self._s.begin_nested():
+                self._s.add_all(rows)
+                self._s.flush()
+        except IntegrityError as exc:
+            raise InvalidState(
+                "Tồn tại ghế đã được gán cho zone khác"
+            ) from exc
+
+    def seat_zone_map(self, event_id: int) -> dict[int, int]:
+        rows = self._s.execute(
+            select(EventZoneSeatModel.seat_id, EventZoneSeatModel.zone_id)
+            .join(
+                EventZoneModel,
+                EventZoneModel.id == EventZoneSeatModel.zone_id,
+            )
+            .where(
+                EventZoneSeatModel.event_id == event_id,
+                EventZoneModel.event_id == event_id,
+            )
+        ).all()
+
+        return {
+            int(seat_id): int(zone_id)
+            for seat_id, zone_id in rows
+        }
 
 
 class SqlHoldRepository:
@@ -917,6 +997,15 @@ class SqlSeatRepository:
                 self._s.add_all(rows)
                 self._s.flush()
         except IntegrityError as exc:
-            raise SeatConflict("One or more seats already exist") from exc
+            raise InvalidState("Có ghế đã tồn tại") from exc
 
         return len(rows)
+    
+    def list_by_ids(self, seat_ids: list[int]) -> list[Seat]:
+        if not seat_ids:
+            return []
+
+        rows = self._s.scalars(
+            select(SeatModel).where(SeatModel.id.in_(seat_ids))
+        ).all()
+        return [_to_seat(row) for row in rows]

@@ -62,9 +62,6 @@ class SaleNotOpen(DomainError):
 class AlreadyCheckedIn(DomainError):
     code = "ALREADY_CHECKED_IN"
 
-class SeatConflict(DomainError):
-    code = "SEAT_CONFLICT"
-
 # --- 410 ---
 class HoldExpired(DomainError):
     code = "HOLD_EXPIRED"

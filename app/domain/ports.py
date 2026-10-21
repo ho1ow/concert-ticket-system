@@ -13,6 +13,7 @@ from app.domain.auth import AccessToken, Actor
 from app.domain.entities import (
     Event,
     EventSeat,
+    EventZone,
     Hold,
     Order,
     OrderItem,
@@ -70,6 +71,8 @@ class PaymentGateway(Protocol):
 @runtime_checkable
 class EventRepository(Protocol):
     def get(self, event_id: int) -> Event | None: ...
+
+    def get_for_update(self, event_id: int) -> Event | None: ...
 
     def list_paginated(
         self,
@@ -140,6 +143,21 @@ class EventZoneRepository(Protocol):
         ...
 
     def list_by_event(self, event_id: int) -> list[Any]: ...
+
+    def add(self, zone: EventZone) -> EventZone: ...
+
+    # Hàm lấy những ghế trong danh sách đã được gán cho event
+    def assigned_seat_ids(
+        self, event_id: int, seat_ids: list[int]
+    ) -> list[int]: ...
+
+    # Hàm thêm các bản ghi EventZoneSeatModel cho zone mới
+    def assign_seats(
+        self, *, event_id: int, zone_id: int, seat_ids: list[int]
+    ) -> None: ...
+
+    # Hàm trả về dict mapping seat_id -> zone_id cho event
+    def seat_zone_map(self, event_id: int) -> dict[int, int]: ...
 
 
 @runtime_checkable
@@ -261,6 +279,7 @@ class VenueRepository(Protocol):
 class SeatRepository(Protocol):
     def add_many(self, seats: list[Seat]) -> int: ...
 
+    def list_by_ids(self, seat_ids: list[int]) -> list[Seat]: ...
 @runtime_checkable
 class UnitOfWork(Protocol):
     users: UserRepository
