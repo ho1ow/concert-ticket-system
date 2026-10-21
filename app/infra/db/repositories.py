@@ -33,7 +33,7 @@ from app.domain.entities import (
     Ticket,
     User,
 )
-from app.domain.errors import EmailExists, SeatConflict
+from app.domain.errors import EmailExists, InvalidState
 from app.infra.db.models import (
     VenueModel,
     EventModel,
@@ -587,8 +587,8 @@ class SqlEventZoneRepository:
                 self._s.add_all(rows)
                 self._s.flush()
         except IntegrityError as exc:
-            raise SeatConflict(
-                "One or more seats are already assigned to a zone"
+            raise InvalidState(
+                "Tồn tại ghế đã được gán cho zone khác"
             ) from exc
 
     def seat_zone_map(self, event_id: int) -> dict[int, int]:
@@ -997,7 +997,7 @@ class SqlSeatRepository:
                 self._s.add_all(rows)
                 self._s.flush()
         except IntegrityError as exc:
-            raise SeatConflict("One or more seats already exist") from exc
+            raise InvalidState("Có ghế đã tồn tại") from exc
 
         return len(rows)
     

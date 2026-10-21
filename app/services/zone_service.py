@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.domain.entities import EventStatus, EventZone
-from app.domain.errors import InvalidState, NotFound, SeatConflict
+from app.domain.errors import InvalidState, NotFound
 from app.domain.ports import UnitOfWork
 
 
