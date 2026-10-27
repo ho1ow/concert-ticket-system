@@ -76,6 +76,12 @@ class MissingIdempotencyKey(DomainError):
     code = "MISSING_IDEMPOTENCY_KEY"
 
 
+class ValidationFailed(DomainError):
+    """Dữ liệu vi phạm quy tắc nghiệp vụ mà schema không kiểm được."""
+
+    code = "VALIDATION_ERROR"
+
+
 class LimitExceeded(DomainError):
     code = "LIMIT_EXCEEDED"
 

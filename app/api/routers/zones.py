@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentActor, EventServiceDep, ZoneServiceDep
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.deps import EventServiceDep, OptionalActor, ZoneServiceDep
+from app.api.errors import error_responses
 from app.api.schemas import EventSeatOut, ZoneIn, ZoneOut
 from app.infra.security import SystemClock
 
@@ -18,9 +18,10 @@ write_router = APIRouter(prefix="/events", tags=["zones & seats"])
     response_model=list[ZoneOut],
     summary="Danh sách khu vực kèm số ghế còn trống",
     responses=error_responses(404),
+    openapi_extra={"security": [{}, {"HTTPBearer": []}]},
 )
 def list_zones(
-    event_id: int, actor: CurrentActor, service: EventServiceDep
+    event_id: int, actor: OptionalActor, service: EventServiceDep
 ) -> list[ZoneOut]:
     zones = service.zones(actor, event_id)
     return [
@@ -44,10 +45,11 @@ def list_zones(
         "(lazy expiry)."
     ),
     responses=error_responses(404),
+    openapi_extra={"security": [{}, {"HTTPBearer": []}]},
 )
 def list_event_seats(
     event_id: int,
-    actor: CurrentActor,
+    actor: OptionalActor,
     service: EventServiceDep,
     zone: str | None = Query(None, description="Lọc theo tên khu vực"),
 ) -> list[EventSeatOut]:

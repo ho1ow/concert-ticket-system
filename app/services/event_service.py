@@ -1,16 +1,21 @@
 """Use case đọc event cho khán giả và lấy sơ đồ ghế."""
 
 from __future__ import annotations
-from typing import Any
 
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from app.domain.auth import Actor, Role
 from app.domain.entities import Event, EventSeat, EventStatus, EventZone, SeatStatus
-from app.domain.errors import NotFound, InvalidState
+from app.domain.errors import InvalidState, NotFound, ValidationFailed
 from app.domain.ports import UnitOfWork
+
+
+def _is_admin(actor: Actor | None) -> bool:
+    """Khách chưa đăng nhập (actor=None) không bao giờ là admin."""
+    return actor is not None and actor.role is Role.ADMIN
 
 
 @dataclass
@@ -66,35 +71,31 @@ class EventService:
             )
 
     def get_with_zones(
-        self, actor: Actor, event_id: int
+        self, actor: Actor | None, event_id: int
     ) -> tuple[Event, list[EventZoneWithCount]]:
         with self._uow() as uow:
             event = uow.events.get(event_id)
             if event is None:
                 raise NotFound("Event not found")
-            if (
-                actor.role is not Role.ADMIN
-                and event.status is not EventStatus.PUBLISHED
-            ):
+            if not _is_admin(actor) and event.status is not EventStatus.PUBLISHED:
                 raise NotFound("Event not found")
             zones = self._zones_with_counts(uow, event_id)
             return event, zones
 
-    def zones(self, actor: Actor, event_id: int) -> list[EventZoneWithCount]:
+    def zones(
+        self, actor: Actor | None, event_id: int
+    ) -> list[EventZoneWithCount]:
         with self._uow() as uow:
             event = uow.events.get(event_id)
             if event is None:
                 raise NotFound("Event not found")
-            if (
-                actor.role is not Role.ADMIN
-                and event.status is not EventStatus.PUBLISHED
-            ):
+            if not _is_admin(actor) and event.status is not EventStatus.PUBLISHED:
                 raise NotFound("Event not found")
             return self._zones_with_counts(uow, event_id)
 
     def list_event_seats(
         self,
-        actor: Actor,
+        actor: Actor | None,
         event_id: int,
         *,
         zone_id: int | None = None,
@@ -103,10 +104,7 @@ class EventService:
             event = uow.events.get(event_id)
             if event is None:
                 raise NotFound("Event not found")
-            if (
-                actor.role is not Role.ADMIN
-                and event.status is not EventStatus.PUBLISHED
-            ):
+            if not _is_admin(actor) and event.status is not EventStatus.PUBLISHED:
                 raise NotFound("Event not found")
             return uow.event_seats.list_with_seat(
                 event_id=event_id, zone_id=zone_id
@@ -159,7 +157,7 @@ class EventService:
 
             now = self._clock.now()
             if sale_open_at <= now or start_time <= sale_open_at:
-                raise ValueError("start_time phải > sale_open_at > now")
+                raise ValidationFailed("start_time phải > sale_open_at > now")
             
             event = Event(
                 id=None,

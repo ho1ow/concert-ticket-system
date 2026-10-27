@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import VenueServiceDep
-from app.api.errors import NotImplementedYet, error_responses
+from app.api.errors import error_responses
 from app.api.schemas import Page, SeatBulkIn, SeatBulkOut, SeatOut, VenueIn, VenueOut
 
 read_router = APIRouter(prefix="/venues", tags=["venues"])

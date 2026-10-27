@@ -88,11 +88,10 @@ POST /payments/webhook (callback của cổng thanh toán):
 Verify chữ ký X-Signature = HMAC-SHA256(secret, timestamp + body) bằng phép so sánh thời gian hằng (hmac.compare_digest). Lệch giờ quá 5 phút thì từ chối, chống replay.
 UNIQUE(provider_ref): nhận lại cùng một callback thì trả 200 mà không xử lý lại.
 Phần cập nhật trạng thái dùng chung logic với bước 5 ở trên.
-Vé & thống kê
+Vé
 API	Điều kiện / xử lý	Lỗi
 GET /tickets/me	Danh sách vé kèm thông tin event và ghế	
 POST /tickets/{code}/check-in	Role STAFF. Cập nhật checked_in_at = now() với điều kiện checked_in_at IS NULL; 0 dòng cập nhật nghĩa là đã check-in rồi. Event phải còn hiệu lực	404 mã sai, 409 ALREADY_CHECKED_IN (kèm thời điểm check-in trước)
-GET /admin/events/{id}/stats	Đếm ghế theo trạng thái (HELD hết hạn tính là trống), tổng doanh thu từ đơn PAID, tách theo zone	404
 3. Điều kiện để hàng nghìn người đặt cùng lúc vẫn đúng
 
 Nguyên tắc chung: không tin vào bước “kiểm tra rồi mới ghi” ở tầng ứng dụng. Mọi bất biến phải được chính database bảo vệ, bằng một câu lệnh nguyên tử hoặc một ràng buộc.

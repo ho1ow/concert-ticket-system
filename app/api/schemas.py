@@ -285,6 +285,8 @@ class WebhookIn(BaseModel):
 
 class WebhookAck(BaseModel):
     received: bool = True
+    processed: bool = True
+    reason: str = ""
 
 
 # --------------------------------------------------------------- tickets
@@ -304,23 +306,3 @@ class CheckInOut(BaseModel):
     checked_in_at: datetime
 
 
-# ----------------------------------------------------------------- stats
-class ZoneStatsOut(BaseModel):
-    zone_id: int
-    zone: str
-    price: int
-    total: int
-    available: int
-    held: int
-    sold: int
-    revenue: int
-
-
-class EventStatsOut(BaseModel):
-    event_id: int
-    total_seats: int
-    available: int
-    held: int
-    sold: int
-    revenue: int
-    zones: list[ZoneStatsOut] = []

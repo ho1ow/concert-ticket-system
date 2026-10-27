@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter, Header, Request
 
 from app.api.deps import CurrentActor, PaymentServiceDep, SettingsDep
 from app.api.errors import error_responses
-from app.api.schemas import PayOut, WebhookAck
-from app.domain.errors import MissingIdempotencyKey, Unauthorized
-from app.infra.config import Settings
+from app.api.schemas import PayOut, WebhookAck, WebhookIn
+from app.domain.errors import MissingIdempotencyKey, Unauthorized, ValidationFailed
 from app.infra.security import verify_webhook_signature
 
 router = APIRouter(prefix="/orders", tags=["payments"])
@@ -68,11 +65,15 @@ def pay_order(
 async def payment_webhook(
     request: Request,
     settings: SettingsDep,
+    service: PaymentServiceDep,
     x_signature: str | None = Header(None, alias="X-Signature"),
     x_timestamp: str | None = Header(None, alias="X-Timestamp"),
 ) -> WebhookAck:
     if not x_signature or not x_timestamp:
         raise Unauthorized("Missing webhook signature")
+
+    # Verify trên raw body, trước khi parse JSON: chữ ký tính trên đúng số byte
+    # đã nhận, không phải trên bản JSON đã chuẩn hoá lại.
     body = await request.body()
     verify_webhook_signature(
         body=body,
@@ -82,7 +83,15 @@ async def payment_webhook(
         max_skew=settings.webhook_max_skew_seconds,
     )
     try:
-        json.loads(body or b"{}")
-    except json.JSONDecodeError:
-        raise Unauthorized("Malformed webhook payload")
-    return WebhookAck(received=True)
+        payload = WebhookIn.model_validate_json(body or b"{}")
+    except ValueError as exc:
+        raise ValidationFailed("Malformed webhook payload") from exc
+
+    result = service.handle_webhook(
+        provider_ref=payload.provider_ref,
+        order_id=payload.order_id,
+        status=payload.status,
+        amount=payload.amount,
+    )
+    # Luôn 200 kể cả khi bỏ qua, để cổng thanh toán không retry vô hạn.
+    return WebhookAck(received=True, processed=result.processed, reason=result.reason)

@@ -351,6 +351,10 @@ paths:
       summary: Danh sách concert
       description: Endpoint đọc chịu tải cao. Public chỉ thấy event PUBLISHED.
       operationId: list_events_events_get
+      security:
+      - HTTPBearer: []
+      - {}
+      - HTTPBearer: []
       parameters:
       - name: status
         in: query
@@ -453,6 +457,10 @@ paths:
       - events
       summary: Chi tiết concert kèm zone và giá
       operationId: get_event_events__event_id__get
+      security:
+      - HTTPBearer: []
+      - {}
+      - HTTPBearer: []
       parameters:
       - name: event_id
         in: path
@@ -484,6 +492,7 @@ paths:
       - events
       summary: '[Admin] Sửa concert'
       description: Sửa tự do khi DRAFT. Khi đã PUBLISHED chỉ còn title và description.
+        Các trường nhận giá trị null sẽ không được cập nhật.
       operationId: update_event_events__event_id__put
       security:
       - HTTPBearer: []
@@ -590,6 +599,10 @@ paths:
       - zones & seats
       summary: Danh sách khu vực kèm số ghế còn trống
       operationId: list_zones_events__event_id__zones_get
+      security:
+      - HTTPBearer: []
+      - {}
+      - HTTPBearer: []
       parameters:
       - name: event_id
         in: path
@@ -686,6 +699,10 @@ paths:
       description: Endpoint đọc chịu tải cao nhất. Lấy bằng một câu JOIN để tránh
         N+1. Ghế HELD đã quá `held_until` được trả về là AVAILABLE (lazy expiry).
       operationId: list_event_seats_events__event_id__seats_get
+      security:
+      - HTTPBearer: []
+      - {}
+      - HTTPBearer: []
       parameters:
       - name: event_id
         in: path
@@ -1274,54 +1291,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /admin/events/{event_id}/stats:
-    get:
-      tags:
-      - admin stats
-      summary: '[Admin] Thống kê bán / giữ / trống và doanh thu'
-      description: Đếm ghế theo trạng thái (HELD đã quá hạn tính là trống), doanh
-        thu lấy từ các đơn PAID, tách theo từng zone.
-      operationId: event_stats_admin_events__event_id__stats_get
-      security:
-      - HTTPBearer: []
-      parameters:
-      - name: event_id
-        in: path
-        required: true
-        schema:
-          type: integer
-          title: Event Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventStatsOut'
-        '401':
-          description: Chưa xác thực
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorOut'
-        '403':
-          description: Sai role
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorOut'
-        '404':
-          description: Không tồn tại hoặc không phải của mình
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorOut'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /payments/webhook:
     post:
       tags:
@@ -1562,41 +1531,6 @@ components:
       - status
       title: EventSeatOut
       description: Một ô trên sơ đồ ghế. ``status`` đã áp dụng lazy expiry.
-    EventStatsOut:
-      properties:
-        event_id:
-          type: integer
-          title: Event Id
-        total_seats:
-          type: integer
-          title: Total Seats
-        available:
-          type: integer
-          title: Available
-        held:
-          type: integer
-          title: Held
-        sold:
-          type: integer
-          title: Sold
-        revenue:
-          type: integer
-          title: Revenue
-        zones:
-          items:
-            $ref: '#/components/schemas/ZoneStatsOut'
-          type: array
-          title: Zones
-          default: []
-      type: object
-      required:
-      - event_id
-      - total_seats
-      - available
-      - held
-      - sold
-      - revenue
-      title: EventStatsOut
     EventStatus:
       type: string
       enum:
@@ -2241,6 +2175,14 @@ components:
           type: boolean
           title: Received
           default: true
+        processed:
+          type: boolean
+          title: Processed
+          default: true
+        reason:
+          type: string
+          title: Reason
+          default: ''
       type: object
       title: WebhookAck
     ZoneIn:
@@ -2290,43 +2232,6 @@ components:
       - name
       - price
       title: ZoneOut
-    ZoneStatsOut:
-      properties:
-        zone_id:
-          type: integer
-          title: Zone Id
-        zone:
-          type: string
-          title: Zone
-        price:
-          type: integer
-          title: Price
-        total:
-          type: integer
-          title: Total
-        available:
-          type: integer
-          title: Available
-        held:
-          type: integer
-          title: Held
-        sold:
-          type: integer
-          title: Sold
-        revenue:
-          type: integer
-          title: Revenue
-      type: object
-      required:
-      - zone_id
-      - zone
-      - price
-      - total
-      - available
-      - held
-      - sold
-      - revenue
-      title: ZoneStatsOut
   securitySchemes:
     HTTPBearer:
       type: http
@@ -2349,5 +2254,3 @@ tags:
   description: Thanh toán idempotent và webhook.
 - name: tickets
   description: Vé QR và check-in.
-- name: admin stats
-  description: Thống kê cho ban tổ chức.

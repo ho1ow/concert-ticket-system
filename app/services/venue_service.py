@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.domain.entities import Venue, Seat
-from app.domain.ports import UnitOfWork
+from app.domain.entities import Seat, Venue
 from app.domain.errors import NotFound
+from app.domain.ports import UnitOfWork
+
 
 class VenueService:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:

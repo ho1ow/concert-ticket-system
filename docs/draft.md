@@ -1,6 +1,6 @@
 Đặt vé concert 
 Khán giả: xem concert và sơ đồ ghế, giữ ghế tạm, thanh toán, nhận vé QR.
-Ban tổ chức (admin): tạo địa điểm và ghế, tạo concert, chia khu vực và giá, mở bán, xem thống kê.
+Ban tổ chức (admin): tạo địa điểm và ghế, tạo concert, chia khu vực và giá, mở bán.
 Nhân viên soát vé (staff): check-in vé.
 Xem concert → Xem ghế → Giữ ghế (HOLD, TTL 10 phút) → Tạo đơn → Thanh toán → Nhận vé
                               └─ hết TTL / huỷ → ghế về AVAILABLE
@@ -163,10 +163,7 @@ GET
 POST
 /tickets/{code}/check-in
 [Staff] chống check-in 2 lần
-Thống kê
-GET
-/admin/events/{id}/stats
-[Admin] bán / giữ / trống, doanh thu
+
 
 
 

@@ -16,7 +16,7 @@ Tài liệu thiết kế chi tiết nằm trong `docs/`: `draft.md` (phác thả
 |---|---|
 | USER (khán giả) | Xem concert và sơ đồ ghế, giữ ghế tạm, tạo đơn, thanh toán, nhận vé QR |
 | STAFF (soát vé) | Check-in vé tại cửa |
-| ADMIN (ban tổ chức) | Tạo địa điểm và ghế, tạo concert, chia khu vực và giá, mở bán, xem thống kê |
+| ADMIN (ban tổ chức) | Tạo địa điểm và ghế, tạo concert, chia khu vực và giá, mở bán |
 
 ADMIN có mọi quyền của STAFF. STAFF và ADMIN vẫn mua vé được như USER. Tài khoản
 STAFF và ADMIN không tạo được qua API, chỉ bằng script CLI.
@@ -142,7 +142,6 @@ check-in trước đó.
 | `DELETE /orders/{id}`, `POST /orders/{id}/pay` | | x | x | x | Chủ sở hữu, ADMIN không trả tiền hộ |
 | `POST /payments/webhook` | HMAC | | | | Chữ ký, timestamp, chống replay |
 | `POST /tickets/{code}/check-in` | | | x | x | Vé chưa check-in, đúng event |
-| `GET /admin/events/{id}/stats` | | | | x | |
 
 Quyền được kiểm ở ba chỗ: middleware xác thực token, dependency theo role gắn ở
 cấp nhóm router, và kiểm tra quyền sở hữu tài nguyên trong tầng service. Tài

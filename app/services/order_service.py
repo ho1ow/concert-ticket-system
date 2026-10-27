@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sqlalchemy.exc import IntegrityError
-
 from app.domain.auth import Actor, Role
 from app.domain.entities import Order, OrderItem, OrderStatus
 from app.domain.errors import (
@@ -73,11 +71,9 @@ class OrderService:
                 expires_at=hold.expires_at,
                 status=OrderStatus.PENDING,
             )
-            try:
-                order = uow.orders.add(placeholder, items, now=now)
-            except IntegrityError:
-                uow.rollback()
-                raise InvalidState("Order already exists for this hold")
+            # Repository đã dịch vi phạm UNIQUE(hold_id) thành InvalidState,
+            # nên ở đây không cần biết đến IntegrityError của SQLAlchemy.
+            order = uow.orders.add(placeholder, items, now=now)
 
             converted = uow.holds.mark_converted(hold.id, now=now)
             if not converted:

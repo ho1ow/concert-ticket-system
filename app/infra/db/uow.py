@@ -13,8 +13,10 @@ from app.infra.db.repositories import (
     SqlOrderRepository,
     SqlPaymentRepository,
     SqlRefreshTokenRepository,
+    SqlSeatRepository,
     SqlTicketRepository,
-    SqlUserRepository, SqlVenueRepository, SqlSeatRepository,
+    SqlUserRepository,
+    SqlVenueRepository,
 )
 from app.infra.db.session import get_session_factory
 

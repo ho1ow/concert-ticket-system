@@ -8,3 +8,4 @@ venv/
 .mypy_cache/
 *.sqlite3
 benchmark/results/
+docs/

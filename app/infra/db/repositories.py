@@ -6,36 +6,33 @@ nên tầng services không cầm đối tượng ORM.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Tuple
+from typing import Any
 
-from sqlalchemy import bindparam, func, select, text, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.domain.entities import (
-    Venue,
     Event,
     EventSeat,
-    EventZone,
     EventStatus,
+    EventZone,
     Hold,
     HoldStatus,
     Order,
     OrderItem,
     OrderStatus,
     Payment,
-    PaymentStatus,
     RefreshToken,
     Seat,
     SeatStatus,
     Ticket,
     User,
+    Venue,
 )
 from app.domain.errors import EmailExists, InvalidState
 from app.infra.db.models import (
-    VenueModel,
     EventModel,
     EventSeatModel,
     EventZoneModel,
@@ -48,6 +45,7 @@ from app.infra.db.models import (
     SeatModel,
     TicketModel,
     UserModel,
+    VenueModel,
 )
 
 
@@ -727,11 +725,13 @@ class SqlOrderRepository:
             expires_at=order.expires_at,
         )
         try:
+            # Savepoint: dịch vi phạm UNIQUE(hold_id) thành lỗi nghiệp vụ, để
+            # tầng service không phải biết đến SQLAlchemy.
             with self._s.begin_nested():
                 self._s.add(row)
                 self._s.flush()
-        except IntegrityError:
-            raise
+        except IntegrityError as exc:
+            raise InvalidState("Order already exists for this hold") from exc
         for item in items:
             self._s.add(
                 OrderItemModel(
@@ -787,12 +787,21 @@ class SqlOrderRepository:
     def order_items_by_event_seat(
         self, *, user_id: int, event_id: int
     ) -> list[OrderItem]:
+        """Ghế đang bị chiếm bởi đơn của user, dùng để đếm quota 4 ghế.
+
+        Chỉ tính đơn còn hiệu lực: đơn CANCELLED hoặc EXPIRED vẫn giữ nguyên
+        các dòng order_items, nếu đếm cả thì user huỷ đơn một lần là mất quota
+        vĩnh viễn.
+        """
         rows = self._s.scalars(
             select(OrderItemModel)
             .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
             .where(
                 OrderModel.user_id == user_id,
                 OrderModel.event_id == event_id,
+                OrderModel.status.in_(
+                    [OrderStatus.PENDING, OrderStatus.PAID]
+                ),
             )
         ).all()
         return [_to_order_item(r) for r in rows]
@@ -810,6 +819,13 @@ class SqlPaymentRepository:
                 PaymentModel.user_id == user_id,
                 PaymentModel.idempotency_key == idempotency_key,
             )
+        )
+        return _to_payment(row) if row else None
+
+    def get_by_provider_ref(self, provider_ref: str) -> Payment | None:
+        """UNIQUE(provider_ref): dùng để chặn replay webhook."""
+        row = self._s.scalar(
+            select(PaymentModel).where(PaymentModel.provider_ref == provider_ref)
         )
         return _to_payment(row) if row else None
 

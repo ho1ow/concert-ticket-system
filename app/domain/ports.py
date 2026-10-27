@@ -19,8 +19,10 @@ from app.domain.entities import (
     OrderItem,
     Payment,
     RefreshToken,
+    Seat,
     Ticket,
-    User, Venue, Seat,
+    User,
+    Venue,
 )
 
 

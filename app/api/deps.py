@@ -24,12 +24,12 @@ from app.infra.security import (
     TicketCodeService,
 )
 from app.services.auth_service import AuthService
-from app.services.venue_service import VenueService
 from app.services.event_service import EventService
 from app.services.hold_service import HoldService
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
 from app.services.ticket_service import TicketService
+from app.services.venue_service import VenueService
 from app.services.zone_service import ZoneService
 
 bearer_scheme = HTTPBearer(auto_error=False, description="Access token (JWT HS256)")
@@ -146,6 +146,23 @@ def get_current_user(
     return issuer.decode_access(credentials.credentials)
 
 
+def get_optional_user(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+    ] = None,
+    issuer: Annotated[JwtTokenIssuer, Depends(get_token_issuer)] = None,
+) -> Actor | None:
+    """Như get_current_user nhưng không có token thì trả None.
+
+    Dùng cho endpoint công khai cần biết người gọi để mở rộng dữ liệu trả về,
+    ví dụ ADMIN xem được cả event DRAFT, còn khách thì chỉ thấy PUBLISHED.
+    Token có nhưng sai vẫn trả 401, để lỗi không bị che đi.
+    """
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return None
+    return issuer.decode_access(credentials.credentials)
+
+
 def require_role(*roles: str):
     """Chặn theo role. Gắn ở cấp nhóm router trong main.py."""
     allowed = {Role(role) for role in roles}
@@ -160,6 +177,7 @@ def require_role(*roles: str):
 
 # ------------------------------------------------------------- shortcuts
 CurrentActor = Annotated[Actor, Depends(get_current_user)]
+OptionalActor = Annotated[Actor | None, Depends(get_optional_user)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 VenueServiceDep = Annotated[VenueService, Depends(get_venue_service)]
 HoldServiceDep = Annotated[HoldService, Depends(get_hold_service)]

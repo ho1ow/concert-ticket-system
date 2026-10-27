@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import secrets
 import time
+from datetime import UTC
 
 import jwt
 from pwdlib import PasswordHash
@@ -145,6 +146,6 @@ class SystemClock:
     """
 
     def now(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)

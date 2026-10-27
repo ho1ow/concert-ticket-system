@@ -18,7 +18,6 @@ DELETE /orders/{id}, POST /orders/{id}/pay		✅	✅	✅	Chủ sở hữu (ADMIN 
 POST /payments/webhook	Không dùng JWT, xác thực bằng HMAC				Chữ ký, timestamp, chống replay
 GET /tickets/me		✅	✅	✅	Lọc theo user_id
 POST /tickets/{code}/check-in			✅	✅	Chưa check-in, đúng event
-GET /admin/events/{id}/stats				✅	
 
 Nên đưa nguyên bảng này vào README. Nó vừa là đặc tả, vừa là checklist để test.
 
@@ -91,7 +90,6 @@ protected.include_router(tickets.me_router)
 staff.include_router(tickets.checkin_router)
 admin.include_router(venues.write_router)
 admin.include_router(events.write_router)
-admin.include_router(stats.router)
 
 for r in (public, protected, staff, admin):
     app.include_router(r)

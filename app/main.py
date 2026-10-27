@@ -18,7 +18,6 @@ from app.api.routers import (
     holds,
     orders,
     payments,
-    stats,
     tickets,
     venues,
     zones,
@@ -51,7 +50,6 @@ TAGS_METADATA = [
     {"name": "orders", "description": "Đơn hàng."},
     {"name": "payments", "description": "Thanh toán idempotent và webhook."},
     {"name": "tickets", "description": "Vé QR và check-in."},
-    {"name": "admin stats", "description": "Thống kê cho ban tổ chức."},
 ]
 
 
@@ -97,7 +95,6 @@ def create_app() -> FastAPI:
     admin.include_router(venues.write_router)
     admin.include_router(events.write_router)
     admin.include_router(zones.write_router)
-    admin.include_router(stats.router)
 
     for group in (public, protected, staff, admin):
         app.include_router(group)
