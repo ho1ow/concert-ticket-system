@@ -151,10 +151,7 @@ chỉ khởi động sau khi `db` báo healthy, bảng được tạo tự độ
 | API | http://localhost:8000 |
 | Đặc tả API | http://localhost:8000/docs |
 | Health check | http://localhost:8000/health |
-| PostgreSQL | `localhost:5433`, user, mật khẩu và tên database đều là `concert` |
 
-Cổng 5433 để không đụng PostgreSQL có sẵn trên máy. Thư mục `app` được mount và
-uvicorn chạy `--reload`, nên sửa code không cần build lại image.
 
 ### 5.2 Tài khoản quản trị
 
