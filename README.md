@@ -5,9 +5,6 @@ Dịch vụ backend đặt vé concert. Đồ án môn Software Architecture.
 Stack: FastAPI, SQLAlchemy, PostgreSQL. Chạy bằng `docker compose up -d --build`,
 đặc tả API xem ở http://localhost:8000/docs.
 
-Tài liệu thiết kế chi tiết nằm trong `docs/`: `draft.md` (phác thảo), `details.md` (luồng từng API, bất biến, transaction),
-`auth.md` (token, phân quyền), `techstacks.md` (quy tắc phụ thuộc giữa các tầng).
-
 ## 1. Yêu cầu nghiệp vụ
 
 ### 1.1 Các bên tham gia
