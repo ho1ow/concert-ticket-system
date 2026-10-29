@@ -46,26 +46,20 @@ STAFF và ADMIN không tạo được qua API, chỉ bằng script CLI.
 
 ## 2. Workflow nghiệp vụ
 
+Khán giả chọn concert, xem sơ đồ ghế, giữ 1 đến 4 ghế trong 10 phút, tạo đơn
+PENDING, thanh toán, nhận vé QR. Ở mọi bước trước khi thanh toán, nếu hết 10 phút
+hoặc người dùng chủ động nhả thì ghế về AVAILABLE.
+
 ### 2.1 Ban tổ chức dựng một concert
 
 Tạo địa điểm, sinh ghế hàng loạt theo dải, tạo concert ở trạng thái DRAFT, chia
 khu vực kèm giá và danh sách ghế, rồi mở bán.
 
 Bước mở bán chạy trong một transaction: kiểm tra event đang DRAFT, có ít nhất một
-khu vực, mọi ghế của địa điểm đã được gán khu vực; sinh bản ghi ghế cho event với
-trạng thái AVAILABLE; chuyển event sang PUBLISHED. Còn ghế chưa gán khu vực thì
-trả 409.
+khu vực, mọi ghế đã được gán khu vực, rồi sinh bản ghi ghế cho event ở trạng thái
+AVAILABLE và chuyển event sang PUBLISHED. Ghế chưa gán khu vực thì trả 409.
 
-Ghế vật lý của địa điểm và ghế của một suất diễn là hai bảng riêng, nên một địa
-điểm tổ chức nhiều concert mà trạng thái ghế không lẫn vào nhau.
-
-### 2.2 Khán giả mua vé
-
-Chọn concert, xem sơ đồ ghế, giữ 1 đến 4 ghế trong 10 phút, tạo đơn PENDING,
-thanh toán, nhận vé QR. Ở mọi bước trước khi thanh toán, nếu hết 10 phút hoặc
-người dùng chủ động nhả thì ghế về AVAILABLE.
-
-### 2.3 Giữ ghế
+### 2.2 Giữ ghế
 
 Đây là phần tranh chấp nặng nhất, vì hàng nghìn người cùng nhắm một khu ghế trong
 vài giây đầu mở bán.
@@ -80,48 +74,45 @@ vài giây đầu mở bán.
 7. Số dòng cập nhật nhỏ hơn số ghế yêu cầu thì rollback toàn bộ và trả 409
    SEAT_UNAVAILABLE kèm danh sách ghế đã mất.
 
-Bước 3 cần thiết vì không có khoá thì một user gửi 5 request song song, cả 5 đều
-đọc thấy đang giữ 0 ghế và đều lọt qua bước 4, giới hạn 4 ghế mất hiệu lực.
-
-Hold hết hạn được xử lý kiểu lazy: ghế HELD mà `held_until` đã qua được coi là
-trống, không cần job nền dọn dẹp.
-
-### 2.4 Tạo đơn
+### 2.3 Tạo đơn
 
 Hold phải thuộc chính user, đang ACTIVE và còn hạn, nếu không trả 410
 HOLD_EXPIRED. Tổng tiền tính theo giá khu vực tại thời điểm tạo đơn và lưu vào
 từng dòng của đơn. Đơn nhận luôn `expires_at` của hold. Ràng buộc unique trên
 `hold_id` khiến một hold chỉ sinh được một đơn.
 
-### 2.5 Thanh toán
+### 2.4 Thanh toán
 
 Thiếu header `Idempotency-Key` thì trả 400. Tra bảng thanh toán theo cặp user và
 key: đã có và cùng đơn thì trả lại đúng response cũ; đã có nhưng khác đơn thì trả
 422 IDEMPOTENCY_KEY_REUSED.
 
 Đơn phải PENDING, thuộc chính user, còn hạn. Quá hạn thì chuyển đơn sang EXPIRED
-và trả 410. Gọi cổng thanh toán xong mới mở transaction, vì không gọi I/O bên
-ngoài trong lúc đang giữ transaction.
+và trả 410.
 
 Transaction chốt gồm: chuyển đơn PENDING sang PAID có điều kiện, chuyển ghế HELD
 sang SOLD chỉ cho ghế còn đúng `hold_id` này, sinh vé với mã QR ngẫu nhiên, lưu
 bản ghi thanh toán. Nếu số ghế chuyển sang SOLD nhỏ hơn số ghế của đơn, nghĩa là
 hold đã hết hạn và người khác kịp lấy ghế, thì rollback và trả 409.
 
-Điều kiện `hold_id` ở câu lệnh trên là lý do cách xử lý hết hạn kiểu lazy vẫn an
-toàn: ghế đã bị người khác giữ lại sẽ mang `hold_id` khác, câu lệnh không cập nhật
-được dòng nào.
-
-Webhook của cổng thanh toán dùng chung logic chốt đơn, nhưng xác thực bằng HMAC
-trên raw body kèm chống replay thay vì dùng JWT.
-
-### 2.6 Soát vé
+### 2.5 Soát vé
 
 Check-in cập nhật `checked_in_at` với điều kiện cột này đang rỗng. Không cập nhật
 được dòng nào nghĩa là vé đã dùng rồi, trả 409 ALREADY_CHECKED_IN kèm thời điểm
 check-in trước đó.
 
-## 3. Ma trận phân quyền
+## 3. Kiến trúc
+
+### 3.1 Phân tầng
+
+    api/       router và schema
+    services/  xử lý logic nghiệp vụ
+    domain/    thực thể, lỗi nghiệp vụ, và interface repository
+    infra/     giao tiếp với PostgreSQL
+
+api → services → domain ← infra
+
+## 4. Ma trận phân quyền
 
 | Endpoint | Public | USER | STAFF | ADMIN | Kiểm tra thêm ở tầng service |
 |---|:--:|:--:|:--:|:--:|---|
@@ -145,19 +136,15 @@ cấp nhóm router, và kiểm tra quyền sở hữu tài nguyên trong tầng 
 nguyên của người khác trả 404 chứ không phải 403, để không tiết lộ id nào đang tồn
 tại.
 
-## 4. Triển khai
+## 5. Triển khai
 
-### 4.1 Yêu cầu
+### 5.1 Deploy
 
-Docker và Docker Compose. Không cần cài Python hay PostgreSQL trên máy.
-
-### 4.2 Chạy
-
+Cần Docker và Docker Compose
     docker compose up -d --build
 
-Compose dựng hai service: `db` là PostgreSQL 16 và `api` là ứng dụng. Service
-`api` chỉ khởi động sau khi `db` báo healthy. Bảng được tạo tự động ở lần khởi
-động đầu.
+Compose dựng hai service: `db` là PostgreSQL 16 và `api` là ứng dụng. Service `api`
+chỉ khởi động sau khi `db` báo healthy, bảng được tạo tự động ở lần đầu.
 
 | Thành phần | Địa chỉ |
 |---|---|
@@ -166,77 +153,12 @@ Compose dựng hai service: `db` là PostgreSQL 16 và `api` là ứng dụng. S
 | Health check | http://localhost:8000/health |
 | PostgreSQL | `localhost:5433`, user, mật khẩu và tên database đều là `concert` |
 
-Cổng 5433 được chọn để không đụng PostgreSQL có sẵn trên máy. Thư mục `app` được
-mount vào container và uvicorn chạy với `--reload`, nên sửa code không cần build
-lại image.
+Cổng 5433 để không đụng PostgreSQL có sẵn trên máy. Thư mục `app` được mount và
+uvicorn chạy `--reload`, nên sửa code không cần build lại image.
 
-### 4.3 Tạo tài khoản quản trị
+### 5.2 Tài khoản quản trị
 
-API không cho đăng ký ADMIN hay STAFF. Dùng script trong container:
+API không cho đăng ký ADMIN hay STAFF. Dùng `make seed` để tạo tài khoản mẫu, hoặc
+tạo thủ công:
 
     docker compose exec api python scripts/create_user.py admin@example.com adminpass123 ADMIN
-    docker compose exec api python scripts/create_user.py staff@example.com staffpass123 STAFF
-
-### 4.4 Các lệnh thường dùng
-
-Makefile gói lại các lệnh hay dùng:
-
-| Lệnh | Tác dụng |
-|---|---|
-| `make up` | Build và bật toàn bộ hệ thống |
-| `make down` | Tắt và xoá luôn volume dữ liệu |
-| `make logs` | Xem log của service api |
-| `make sh` | Mở shell trong container api |
-| `make psql` | Mở psql vào database |
-| `make test` | Chạy pytest trong container |
-| `make lint` | Kiểm tra ràng buộc phụ thuộc giữa các tầng bằng import-linter |
-| `make openapi` | Sinh lại `openapi.yaml` và `openapi.json` |
-| `make seed` | Tạo tài khoản ADMIN và STAFF mẫu |
-
-### 4.5 Cấu hình
-
-Toàn bộ cấu hình đọc từ biến môi trường, mẫu đầy đủ ở `.env.example`. Trong
-compose, các biến cần thiết đã được đặt sẵn cho môi trường phát triển.
-
-| Biến | Mặc định | Ý nghĩa |
-|---|---|---|
-| `DATABASE_URL` | trỏ tới service `db` | Chuỗi kết nối, chấp nhận cả `sqlite://` để test nhanh |
-| `JWT_SECRET` | `dev-secret-change-me` | Khoá ký access token |
-| `WEBHOOK_SECRET` | `dev-webhook-secret` | Khoá HMAC cho webhook thanh toán |
-| `ACCESS_TOKEN_TTL_SECONDS` | 900 | Thời hạn access token |
-| `REFRESH_TOKEN_TTL_DAYS` | 7 | Thời hạn refresh token |
-| `LOGIN_LOCK_THRESHOLD` | 5 | Số lần sai mật khẩu thì khoá tài khoản |
-| `LOGIN_LOCK_MINUTES` | 15 | Thời gian khoá |
-| `HOLD_TTL_MINUTES` | 10 | Thời gian giữ ghế, quy tắc R4 |
-| `MAX_SEATS_PER_USER_PER_EVENT` | 4 | Quy tắc R3 |
-| `DB_POOL_SIZE` | 10 | Kích thước connection pool |
-| `DB_LOCK_TIMEOUT_MS` | 2000 | Thời gian chờ khoá tối đa của một câu lệnh |
-| `DB_STATEMENT_TIMEOUT_MS` | 5000 | Thời gian chạy tối đa của một câu lệnh |
-| `AUTO_CREATE_SCHEMA` | true | Tạo bảng khi khởi động |
-| `HOLD_STRATEGY` | atomic | `naive` chỉ dùng khi benchmark để chứng minh lỗi bán trùng |
-
-### 4.6 Khi deploy thật
-
-Những điểm phải đổi so với cấu hình phát triển:
-
-- Đặt `JWT_SECRET` và `WEBHOOK_SECRET` bằng giá trị ngẫu nhiên, truyền qua biến
-  môi trường hoặc secret manager, không commit vào repo.
-- Đổi mật khẩu PostgreSQL và không publish cổng 5433 ra ngoài.
-- Bỏ phần mount thư mục `app` và bỏ `--reload` trong lệnh chạy, để container
-  dùng đúng code đã build trong image.
-- Đặt `AUTO_CREATE_SCHEMA=false` và quản lý schema bằng migration nếu hệ thống
-  đã có dữ liệu thật.
-- Chạy sau một reverse proxy có TLS, vì access token đi trong header.
-
-Pha 1 cố ý giữ một process uvicorn và PostgreSQL thuần để làm mốc đo. Các hướng
-mở rộng của Pha 2 gồm nhiều worker gunicorn sau Nginx, PgBouncer cho connection
-pool, Redis cho việc giữ ghế và cache sơ đồ ghế, rate limit cho endpoint giữ ghế.
-
-### 4.7 Chạy không dùng Docker
-
-Cần Python 3.12 và PostgreSQL đang chạy.
-
-    python -m venv .venv && source .venv/bin/activate
-    pip install -r requirements-dev.txt
-    export DATABASE_URL="postgresql+psycopg://concert:concert@localhost:5432/concert"
-    uvicorn app.main:app --reload
